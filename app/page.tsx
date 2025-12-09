@@ -7,7 +7,8 @@ import { toast } from 'sonner';
 import { ChartConfig } from '@/components/ui/chart';
 import { Spinner } from '@/components/ui/spinner';
 import { parseRepositories, parseAuthors } from '@/lib/utils/repository-parser';
-import { CHART_COLORS } from '@/lib/utils/chart-helpers';
+import { CHART_COLORS, createSafeChartKey } from '@/lib/utils/chart-helpers';
+import { calculateTeamBalanceScore, calculateNormalizedEntropy } from '@/lib/utils/stats';
 import { fetchPRsWithPagination } from '@/lib/api/github-fetcher';
 import { fetchFilesForPRs } from '@/lib/api/pr-files-fetcher';
 import type { Repository, GitHubPR, PRFilesMap, LoadingProgress } from '@/lib/types/github';
@@ -15,8 +16,20 @@ import { BugfixBreakdownCard } from './components/BugfixBreakdownCard';
 import { ThroughputCard } from './components/ThroughputCard';
 import { CodeHotspotsCard } from './components/CodeHotspotsCard';
 import { ConfigurationCard } from './components/ConfigurationCard';
+import { PRInvolvementCard } from './components/PRInvolvementCard';
+import { AppSidebar } from './components/AppSidebar';
+import { SidebarInset } from '@/components/ui/sidebar';
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
+
+type Section = 'configuration' | 'code-health' | 'team-health';
 
 export default function Home() {
+  // Active section state
+  const [activeSection, setActiveSection] = useState<Section>('configuration');
+
+  // Track last saved timestamp
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+
   // GitHub PR state
   const [bugfixPRs, setBugfixPRs] = useState<GitHubPR[]>([]);
   const [allPRs, setAllPRs] = useState<GitHubPR[]>([]); // All PRs for denominator
@@ -38,7 +51,7 @@ export default function Home() {
     loadedRepos: 0,
     totalPRs: 0
   });
-  const [isConfigOpen, setIsConfigOpen] = useState<boolean>(false);
+  const [prInvolvement, setPrInvolvement] = useState<Map<string, Set<string>>>(new Map());
 
   // Save configuration to file
   const saveConfig = async () => {
@@ -54,30 +67,30 @@ export default function Home() {
       setSelectedAuthors(parsedAuthors);
     }
 
+    const savedAt = new Date().toISOString();
     const config = {
       repositories: parsedRepos.map(r => r.id),
       authors: parsedAuthors,
       bugfixPRsQuery,
       totalPRsQuery,
+      savedAt: savedAt,
     };
 
     try {
-      const response = await fetch('/api/config', {
+      await fetch('/api/config', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(config),
       });
-
-      if (response.ok) {
-        toast.success('Configuration saved successfully!');
-      } else {
-        toast.error('Failed to save configuration');
-      }
+      // Update last saved timestamp
+      setLastSavedAt(savedAt);
+      // Silent auto-save - no toast notification
     } catch (error) {
-      toast.error('Error saving configuration');
-      console.error(error);
+      console.error('Failed to auto-save configuration:', error);
+      // Only show error on failure
+      toast.error('Failed to save configuration');
     }
   };
 
@@ -106,9 +119,12 @@ export default function Home() {
       if (config.bugfixPRsQuery) setBugfixPRsQuery(config.bugfixPRsQuery);
       if (config.totalPRsQuery) setTotalPRsQuery(config.totalPRsQuery);
 
-      // Open config if required fields are not set
+      // Set last saved timestamp
+      if (config.savedAt) setLastSavedAt(config.savedAt);
+
+      // Switch to configuration section if required fields are not set
       if (!config.repositories?.length || !config.bugfixPRsQuery || !config.totalPRsQuery) {
-        setIsConfigOpen(true);
+        setActiveSection('configuration');
       }
     } catch (err) {
       // Config file doesn't exist yet, use defaults
@@ -120,8 +136,20 @@ export default function Home() {
     loadConfigFromFile();
   }, []);
 
+  // Auto-save configuration after debounce
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      saveConfig();
+    }, 500); // 500ms debounce
+
+    return () => clearTimeout(timer);
+  }, [repoInput, authorInput, bugfixPRsQuery, totalPRsQuery]);
+
+  // Parameterized query for involves:
+  const buildInvolvesQuery = (author: string) => `${totalPRsQuery} involves:${author}`;
+
   const loadGithubPRs = async () => {
-    if (!bugfixPRsQuery.trim() || repositories.length === 0) return;
+    if (!bugfixPRsQuery.trim() || !totalPRsQuery.trim() || repositories.length === 0) return;
 
     setGithubLoading(true);
     setBugfixPRs([]);
@@ -129,6 +157,7 @@ export default function Home() {
     setPrFiles({});
     setCurrentPath([]);
     setLoadingProgress({ totalRepos: repositories.length, loadedRepos: 0, totalPRs: 0 });
+    setPrInvolvement(new Map());
 
     try {
       // Build author filter query string
@@ -165,29 +194,76 @@ export default function Home() {
             }
           });
 
-          // Fetch total PRs with query 2
-          const totalQueryWithAuthors = totalPRsQuery + authorFilter;
-          const repoAllPRs = await fetchPRsWithPagination({
-            owner,
-            repo,
-            repoId: id,
-            query: totalQueryWithAuthors,
-            onWarning: (message, description) => {
-              const toastType = message.includes('exceeds') ? 'warning' : 'info';
+          // Fetch total PRs with query 2 - PER AUTHOR with involves:
+          const repoAllPRsMap = new Map<string, GitHubPR>();
+          const repoInvolvementMap = new Map<string, Set<string>>();
 
-              if (toastType === 'warning') {
-                toast.warning(
-                  <div>{message} for query <Badge variant="secondary" className="ml-1">2</Badge></div>,
-                  { description, duration: 10000 }
-                );
-              } else {
-                toast.info(
-                  <div>{message} for query <Badge variant="secondary" className="ml-1">2</Badge></div>,
-                  { description, duration: 8000 }
-                );
+          if (selectedAuthors.length === 0) {
+            // No authors: fetch all PRs without filter
+            const prs = await fetchPRsWithPagination({
+              owner,
+              repo,
+              repoId: id,
+              query: totalPRsQuery,
+              onWarning: (message, description) => {
+                const toastType = message.includes('exceeds') ? 'warning' : 'info';
+
+                if (toastType === 'warning') {
+                  toast.warning(
+                    <div>{message} for query <Badge variant="secondary" className="ml-1">2</Badge></div>,
+                    { description, duration: 10000 }
+                  );
+                } else {
+                  toast.info(
+                    <div>{message} for query <Badge variant="secondary" className="ml-1">2</Badge></div>,
+                    { description, duration: 8000 }
+                  );
+                }
               }
+            });
+
+            prs.forEach(pr => {
+              const key = `${pr.repoId}#${pr.number}`;
+              repoAllPRsMap.set(key, pr);
+            });
+          } else {
+            // With authors: fetch per author with involves:
+            for (const author of selectedAuthors) {
+              const authorPRs = await fetchPRsWithPagination({
+                owner,
+                repo,
+                repoId: id,
+                query: buildInvolvesQuery(author),
+                onWarning: (message, description) => {
+                  const toastType = message.includes('exceeds') ? 'warning' : 'info';
+
+                  if (toastType === 'warning') {
+                    toast.warning(
+                      <div>{message} for query <Badge variant="secondary" className="ml-1">2</Badge></div>,
+                      { description, duration: 10000 }
+                    );
+                  } else {
+                    toast.info(
+                      <div>{message} for query <Badge variant="secondary" className="ml-1">2</Badge></div>,
+                      { description, duration: 8000 }
+                    );
+                  }
+                }
+              });
+
+              authorPRs.forEach(pr => {
+                const key = `${pr.repoId}#${pr.number}`;
+                repoAllPRsMap.set(key, pr); // Dedupe
+
+                if (!repoInvolvementMap.has(key)) {
+                  repoInvolvementMap.set(key, new Set());
+                }
+                repoInvolvementMap.get(key)!.add(author);
+              });
             }
-          });
+          }
+
+          const repoAllPRs = Array.from(repoAllPRsMap.values());
 
           // Update progress after each repo
           setLoadingProgress(prev => ({
@@ -196,10 +272,10 @@ export default function Home() {
             totalPRs: prev.totalPRs + repoPRs.length
           }));
 
-          return { filteredPRs: repoPRs, allPRs: repoAllPRs };
+          return { filteredPRs: repoPRs, allPRs: repoAllPRs, involvement: repoInvolvementMap };
         } catch (err) {
           console.error(`Failed to load ${id}:`, err);
-          return { filteredPRs: [], allPRs: [] };
+          return { filteredPRs: [], allPRs: [], involvement: new Map() };
         }
       });
 
@@ -208,8 +284,20 @@ export default function Home() {
       const bugfixPRsFromAllRepos = allRepoResults.flatMap(r => r.filteredPRs);
       const allPRsFromAllRepos = allRepoResults.flatMap(r => r.allPRs);
 
+      // Merge involvement maps from all repos
+      const globalInvolvementMap = new Map<string, Set<string>>();
+      allRepoResults.forEach(result => {
+        result.involvement.forEach((authors, key) => {
+          if (!globalInvolvementMap.has(key)) {
+            globalInvolvementMap.set(key, new Set());
+          }
+          authors.forEach((author: string) => globalInvolvementMap.get(key)!.add(author));
+        });
+      });
+
       setBugfixPRs(bugfixPRsFromAllRepos);
       setAllPRs(allPRsFromAllRepos);
+      setPrInvolvement(globalInvolvementMap);
       setGithubTotalCount(bugfixPRsFromAllRepos.length);
 
       // Initialize selected repo for files if not set
@@ -420,6 +508,110 @@ export default function Home() {
     return config;
   }, [repositoriesWithData, throughputSafeKeys]);
 
+  // Calculate daily open PR counts for "PR Involvement" chart
+  const prInvolvementData = useMemo(() => {
+    if (allPRs.length === 0) return [];
+
+    // Extract date range from all PRs (both creation and closing dates)
+    const allDates = allPRs.flatMap(pr => {
+      const dates = [new Date(pr.created_at).getTime()];
+      if (pr.closed_at) {
+        dates.push(new Date(pr.closed_at).getTime());
+      }
+      return dates;
+    });
+    const minDate = new Date(Math.min(...allDates));
+    // Get min date at midnight local time
+    const minDateLocal = new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate());
+
+    // Get today at midnight local time
+    const now = new Date();
+    const todayLocal = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    // Fall back to total count when no authors selected (legacy behavior)
+    if (selectedAuthors.length === 0) {
+      const dateMap: Record<string, number> = {};
+
+      // Iterate through each day in the range (up to and including today)
+      for (let currentDate = new Date(minDateLocal); currentDate <= todayLocal; currentDate.setDate(currentDate.getDate() + 1)) {
+        // Format as YYYY-MM-DD in local time
+        const year = currentDate.getFullYear();
+        const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+        const day = String(currentDate.getDate()).padStart(2, '0');
+        const dateStr = `${year}-${month}-${day}`;
+
+        const dayEnd = new Date(dateStr + 'T23:59:59.999');
+
+        const openCount = allPRs.filter(pr => {
+          const createdAt = new Date(pr.created_at);
+          const closedAt = pr.closed_at ? new Date(pr.closed_at) : null;
+
+          const wasCreated = createdAt < dayEnd;
+          const stillOpen = !closedAt || closedAt > dayEnd;
+
+          return wasCreated && stillOpen;
+        }).length;
+
+        dateMap[dateStr] = openCount;
+      }
+
+      return Object.entries(dateMap)
+        .sort(([dateA], [dateB]) => dateA.localeCompare(dateB))
+        .map(([date, openCount]) => ({
+          date,
+          openCount
+        }));
+    }
+
+    // Calculate per-author involvement over time
+    const dataPoints: Array<any> = [];
+
+    // Iterate through each day
+    for (let currentDate = new Date(minDateLocal); currentDate <= todayLocal; currentDate.setDate(currentDate.getDate() + 1)) {
+      const year = currentDate.getFullYear();
+      const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+      const day = String(currentDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      const dayEnd = new Date(dateStr + 'T23:59:59.999');
+
+      const dataPoint: any = { date: dateStr };
+
+      // Count per author
+      const authorCounts: number[] = [];
+      selectedAuthors.forEach(author => {
+        const count = allPRs.filter(pr => {
+          const prKey = `${pr.repoId}#${pr.number}`;
+          const isInvolved = prInvolvement.get(prKey)?.has(author) ?? false;
+
+          if (!isInvolved) return false;
+
+          const createdAt = new Date(pr.created_at);
+          const closedAt = pr.closed_at ? new Date(pr.closed_at) : null;
+          const wasCreated = createdAt < dayEnd;
+          const stillOpen = !closedAt || closedAt > dayEnd;
+
+          return wasCreated && stillOpen;
+        }).length;
+
+        const safeKey = createSafeChartKey(author);
+        dataPoint[safeKey] = count;
+
+        // Only include in balance calculation if author has PRs on this day
+        if (count > 0) {
+          authorCounts.push(count);
+        }
+      });
+
+      // Calculate team balance score with only authors who have PRs today
+      dataPoint.teamBalance = calculateTeamBalanceScore(authorCounts);
+      dataPoint.teamEntropy = calculateNormalizedEntropy(authorCounts);
+
+      dataPoints.push(dataPoint);
+    }
+
+    return dataPoints;
+  }, [allPRs, prInvolvement, selectedAuthors]);
+
   // Calculate per-repo PR breakdown
   const repoBreakdown = useMemo(() => {
     const breakdown: Array<{
@@ -461,79 +653,145 @@ export default function Home() {
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }, [selectedFile, selectedRepoForFiles, currentPath, bugfixPRs, prFiles]);
 
-  return (
-    <div className="container mx-auto p-8">
-      <h1 className="text-4xl font-bold mb-8">Quality Triage</h1>
+  // Check if configuration is complete
+  const isConfigurationComplete = repositories.length > 0 && bugfixPRsQuery.trim().length > 0 && totalPRsQuery.trim().length > 0;
 
-      <ConfigurationCard
-        isOpen={isConfigOpen}
-        onOpenChange={setIsConfigOpen}
-        repoInput={repoInput}
-        authorInput={authorInput}
-        bugfixPRsQuery={bugfixPRsQuery}
-        totalPRsQuery={totalPRsQuery}
-        onRepoInputChange={setRepoInput}
-        onAuthorInputChange={setAuthorInput}
-        onBugfixQueryChange={setBugfixPRsQuery}
-        onTotalQueryChange={setTotalPRsQuery}
-        onRepositoriesChange={setRepositories}
-        onAuthorsChange={setSelectedAuthors}
-        onSaveConfig={saveConfig}
+  return (
+    <>
+      <AppSidebar
+        activeSection={activeSection}
+        onSectionChange={setActiveSection}
         onRefresh={loadGithubPRs}
         isLoading={githubLoading}
+        isConfigurationComplete={isConfigurationComplete}
       />
+      <SidebarInset>
+        <main className="flex flex-1 flex-col gap-4 p-4">
+          <div className="flex flex-col gap-2">
+            <h2 className="text-2xl font-bold">
+              {activeSection === 'configuration' && 'Configuration'}
+              {activeSection === 'code-health' && 'Code health'}
+              {activeSection === 'team-health' && 'Team health'}
+            </h2>
+            {activeSection === 'configuration' && lastSavedAt && (
+              <p className="text-sm text-muted-foreground">
+                Auto-saved at {new Date(lastSavedAt).toLocaleString()}
+              </p>
+            )}
+            {activeSection === 'code-health' && (
+              <p className="text-sm text-muted-foreground">
+                Track code quality metrics and bugfix patterns
+              </p>
+            )}
+            {activeSection === 'team-health' && null}
+          </div>
 
-      <div className="mb-6">
-        <Button
-          onClick={loadGithubPRs}
-          disabled={githubLoading || !repoInput.trim() || !bugfixPRsQuery.trim() || !totalPRsQuery.trim()}
-          className="w-full"
-        >
-          {githubLoading ? 'Loading...' : 'Refresh'}
-        </Button>
-      </div>
+          {githubLoading && loadingProgress.totalRepos > 0 && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Spinner />
+              <span>Loading: {loadingProgress.loadedRepos}/{loadingProgress.totalRepos} repos</span>
+            </div>
+          )}
 
-      {githubLoading && loadingProgress.totalRepos > 0 && (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
-          <Spinner />
-          <span>Loading: {loadingProgress.loadedRepos}/{loadingProgress.totalRepos} repos</span>
-        </div>
-      )}
+          {activeSection === 'configuration' && (
+            <ConfigurationCard
+              repoInput={repoInput}
+              authorInput={authorInput}
+              bugfixPRsQuery={bugfixPRsQuery}
+              totalPRsQuery={totalPRsQuery}
+              onRepoInputChange={setRepoInput}
+              onAuthorInputChange={setAuthorInput}
+              onBugfixQueryChange={setBugfixPRsQuery}
+              onTotalQueryChange={setTotalPRsQuery}
+              onRepositoriesChange={setRepositories}
+              onAuthorsChange={setSelectedAuthors}
+              onRefresh={loadGithubPRs}
+              isLoading={githubLoading}
+            />
+          )}
 
-      {!githubLoading && (
-        <BugfixBreakdownCard
-          repoBreakdown={repoBreakdown}
-          githubTotalCount={githubTotalCount}
-        />
-      )}
+          {activeSection === 'code-health' && (
+            <>
+              {bugfixPRs.length === 0 && allPRs.length === 0 && !githubLoading ? (
+                <Empty>
+                  <EmptyHeader>
+                    <EmptyTitle>
+                      {isConfigurationComplete ? 'No data loaded' : 'Configuration required'}
+                    </EmptyTitle>
+                    <EmptyDescription>
+                      {isConfigurationComplete
+                        ? 'Click the Refresh button in the sidebar to load your data.'
+                        : 'Complete the configuration in the Configuration section, then click Refresh to load data.'}
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              ) : (
+                <>
+                  {!githubLoading && (
+                    <BugfixBreakdownCard
+                      repoBreakdown={repoBreakdown}
+                      githubTotalCount={githubTotalCount}
+                    />
+                  )}
 
-      <ThroughputCard
-        throughputPercentageData={throughputPercentageData}
-        throughputChartConfig={throughputChartConfig}
-        throughputSafeKeys={throughputSafeKeys}
-        selectedReposForThroughput={selectedReposForThroughput}
-        repositoriesWithData={repositoriesWithData}
-        onRepoToggle={(repoId) => {
-          setSelectedReposForThroughput(prev =>
-            prev.includes(repoId)
-              ? prev.filter(id => id !== repoId)
-              : [...prev, repoId]
-          );
-        }}
-      />
+                  <ThroughputCard
+                    throughputPercentageData={throughputPercentageData}
+                    throughputChartConfig={throughputChartConfig}
+                    throughputSafeKeys={throughputSafeKeys}
+                    selectedReposForThroughput={selectedReposForThroughput}
+                    repositoriesWithData={repositoriesWithData}
+                    onRepoToggle={(repoId) => {
+                      setSelectedReposForThroughput(prev =>
+                        prev.includes(repoId)
+                          ? prev.filter(id => id !== repoId)
+                          : [...prev, repoId]
+                      );
+                    }}
+                  />
 
-      <CodeHotspotsCard
-        currentLevelData={currentLevelData}
-        maxChangesAtRoot={maxChangesAtRoot}
-        selectedRepoForFiles={selectedRepoForFiles}
-        currentPath={currentPath}
-        selectedFile={selectedFile}
-        prsForSelectedFile={prsForSelectedFile}
-        repositoriesWithData={repositoriesWithData}
-        onRepoChange={setSelectedRepoForFiles}
-        onNavigate={setCurrentPath}
-        onFileSelect={setSelectedFile}
-      />
-    </div>
+                  <CodeHotspotsCard
+                    currentLevelData={currentLevelData}
+                    maxChangesAtRoot={maxChangesAtRoot}
+                    selectedRepoForFiles={selectedRepoForFiles}
+                    currentPath={currentPath}
+                    selectedFile={selectedFile}
+                    prsForSelectedFile={prsForSelectedFile}
+                    repositoriesWithData={repositoriesWithData}
+                    onRepoChange={setSelectedRepoForFiles}
+                    onNavigate={setCurrentPath}
+                    onFileSelect={setSelectedFile}
+                  />
+                </>
+              )}
+            </>
+          )}
+
+          {activeSection === 'team-health' && (
+            <>
+              {allPRs.length === 0 && !githubLoading ? (
+                <Empty>
+                  <EmptyHeader>
+                    <EmptyTitle>
+                      {isConfigurationComplete ? 'No data loaded' : 'Configuration required'}
+                    </EmptyTitle>
+                    <EmptyDescription>
+                      {isConfigurationComplete
+                        ? 'Click the Refresh button in the sidebar to load your data.'
+                        : 'Complete the configuration in the Configuration section, then click Refresh to load data.'}
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              ) : (
+                <PRInvolvementCard
+                  data={prInvolvementData}
+                  devs={selectedAuthors}
+                  query={buildInvolvesQuery('<username>')}
+                />
+              )}
+            </>
+          )}
+        </main>
+      </SidebarInset>
+    </>
   );
 }

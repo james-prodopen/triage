@@ -1,19 +1,13 @@
 'use client';
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Field, FieldGroup, FieldSet, FieldLabel, FieldDescription } from '@/components/ui/field';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronsUpDown } from 'lucide-react';
 import { parseRepositories, parseAuthors } from '@/lib/utils/repository-parser';
 import type { Repository } from '@/lib/types/github';
 
 interface ConfigurationCardProps {
-  // Collapsible state
-  isOpen: boolean;
-  onOpenChange: (open: boolean) => void;
-
   // Input values
   repoInput: string;
   authorInput: string;
@@ -31,7 +25,6 @@ interface ConfigurationCardProps {
   onAuthorsChange: (authors: string[]) => void;
 
   // Action callbacks
-  onSaveConfig: () => void;
   onRefresh: () => void;
 
   // Loading state
@@ -39,8 +32,6 @@ interface ConfigurationCardProps {
 }
 
 export function ConfigurationCard({
-  isOpen,
-  onOpenChange,
   repoInput,
   authorInput,
   bugfixPRsQuery,
@@ -51,21 +42,12 @@ export function ConfigurationCard({
   onTotalQueryChange,
   onRepositoriesChange,
   onAuthorsChange,
-  onSaveConfig,
   onRefresh,
   isLoading,
 }: ConfigurationCardProps) {
   return (
-    <Collapsible open={isOpen} onOpenChange={onOpenChange} className="mb-6">
-      <Card>
-        <CardHeader>
-          <CollapsibleTrigger className="flex items-center gap-2 w-full [&[data-state=open]>svg]:rotate-180">
-            <CardTitle>Configuration</CardTitle>
-            <ChevronsUpDown className="h-4 w-4 transition-transform" />
-          </CollapsibleTrigger>
-        </CardHeader>
-        <CollapsibleContent>
-          <CardContent>
+    <Card>
+      <CardContent className="pt-6">
             <FieldSet>
               <FieldGroup>
                 <Field>
@@ -143,15 +125,9 @@ export function ConfigurationCard({
                     required
                   />
                 </Field>
-
-                <Button onClick={onSaveConfig} variant="outline" className="w-full">
-                  Save Configuration
-                </Button>
               </FieldGroup>
             </FieldSet>
-          </CardContent>
-        </CollapsibleContent>
-      </Card>
-    </Collapsible>
+      </CardContent>
+    </Card>
   );
 }

@@ -1,6 +1,8 @@
 # Quality Triage
 
 Data to help engineering managers answer these questions:
+- How reliant is the team on a subset of devs? How often are they in the critical path? If trying to change this, how is progress? 
+- Who might be at silent risk of burnout/attrition?
 - Which parts of our codebase are costliest to maintain? Which are becoming more costly?
 - What areas of code are most brittle? Where should we focus first to reduce regressions?
 - Where will we get the highest ROI on reducing tech debt?
@@ -16,11 +18,6 @@ npm install
 ```
 
 2. Generate a [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens) with access to the repos you want to analyze.
-
-**Required Token Scopes:**
-Your GitHub Personal Access Token needs the following scopes:
-- `repo` (Full control of private repositories) - to access PRs and PR files
-- `read:org` (Read org and team membership) - if analyzing organization repositories
 
 3. Copy the `.env.example` file and add your GitHub token:
 
@@ -49,7 +46,15 @@ On first launch, configure the dashboard for your team:
 
 Configuration is automatically saved to `config.json` for persistence.
 
-## Data
+## Team Health
+
+### Active PR context, by dev
+
+Which devs is the team most reliant on? Is the team becoming more/less balanced? Who might be at silent risk of burnout/attrition?
+
+![Active PR context by dev](screenshots/pr_involvement.png)
+
+## Code Health
 
 ### Bugfix PR breakdown
 
