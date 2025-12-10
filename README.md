@@ -1,7 +1,7 @@
 # Quality Triage
 
-Data to help engineering managers answer these questions:
-- How reliant is the team on a subset of devs? How often are they in the critical path? If trying to change this, how is progress? 
+Data to help leaders answer these questions:
+- Which devs is the team most reliant on? Is the team becoming more/less balanced?
 - Who might be at silent risk of burnout/attrition?
 - Which parts of our codebase are costliest to maintain? Which are becoming more costly?
 - What areas of code are most brittle? Where should we focus first to reduce regressions?
