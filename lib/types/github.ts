@@ -37,3 +37,9 @@ export interface LoadingProgress {
   loadedRepos: number;
   totalPRs: number;
 }
+
+export interface ReviewCommentStats {
+  author: string;
+  commentsReceived: number;
+  prsAuthored: number;
+}

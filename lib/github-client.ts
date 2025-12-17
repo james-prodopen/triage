@@ -31,8 +31,23 @@ export function createGitHubClient() {
     }
   }
 
+  /**
+   * Make a request to the GitHub GraphQL API
+   * @param query - The GraphQL query string
+   * @param variables - Variables for the query
+   */
+  async function fetchGraphQL<T = any>(query: string, variables?: Record<string, any>): Promise<T> {
+    try {
+      const response = await octokit.graphql<T>(query, variables);
+      return response;
+    } catch (error: any) {
+      throw new Error(`GitHub GraphQL error: ${error.message}`);
+    }
+  }
+
   return {
     fetchGitHub,
+    fetchGraphQL,
     octokit // Expose the full octokit instance for advanced usage
   };
 }

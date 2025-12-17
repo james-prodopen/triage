@@ -11,12 +11,14 @@ import { CHART_COLORS, createSafeChartKey } from '@/lib/utils/chart-helpers';
 import { calculateTeamBalanceScore, calculateNormalizedEntropy } from '@/lib/utils/stats';
 import { fetchPRsWithPagination } from '@/lib/api/github-fetcher';
 import { fetchFilesForPRs } from '@/lib/api/pr-files-fetcher';
-import type { Repository, GitHubPR, PRFilesMap, LoadingProgress } from '@/lib/types/github';
+import { fetchReviewComments } from '@/lib/api/review-comments-fetcher';
+import type { Repository, GitHubPR, PRFilesMap, LoadingProgress, ReviewCommentStats } from '@/lib/types/github';
 import { BugfixBreakdownCard } from './components/BugfixBreakdownCard';
 import { ThroughputCard } from './components/ThroughputCard';
 import { CodeHotspotsCard } from './components/CodeHotspotsCard';
 import { ConfigurationCard } from './components/ConfigurationCard';
 import { PRInvolvementCard } from './components/PRInvolvementCard';
+import { ReviewCommentsCard } from './components/ReviewCommentsCard';
 import { AppSidebar } from './components/AppSidebar';
 import { SidebarInset } from '@/components/ui/sidebar';
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
@@ -52,6 +54,8 @@ export default function Home() {
     totalPRs: 0
   });
   const [prInvolvement, setPrInvolvement] = useState<Map<string, Set<string>>>(new Map());
+  const [reviewCommentsData, setReviewCommentsData] = useState<ReviewCommentStats[]>([]);
+  const [reviewCommentsLoading, setReviewCommentsLoading] = useState<boolean>(false);
 
   // Save configuration to file
   const saveConfig = async () => {
@@ -313,6 +317,20 @@ export default function Home() {
       if (bugfixPRsFromAllRepos.length > 0) {
         const filesMap = await fetchFilesForPRs(bugfixPRsFromAllRepos);
         setPrFiles(filesMap);
+      }
+
+      // Load review comments if authors are configured
+      if (selectedAuthors.length > 0 && repositories.length > 0) {
+        setReviewCommentsLoading(true);
+        try {
+          const reviewStats = await fetchReviewComments(repositories, selectedAuthors);
+          setReviewCommentsData(reviewStats);
+        } catch (err) {
+          console.error('Failed to load review comments:', err);
+          toast.error(`Failed to load review comments: ${err}`);
+        } finally {
+          setReviewCommentsLoading(false);
+        }
       }
     } catch (err) {
       console.error('Failed to load GitHub PRs:', err);
@@ -782,11 +800,17 @@ export default function Home() {
                   </EmptyHeader>
                 </Empty>
               ) : (
-                <PRInvolvementCard
-                  data={prInvolvementData}
-                  devs={selectedAuthors}
-                  query={buildInvolvesQuery('<username>')}
-                />
+                <>
+                  <PRInvolvementCard
+                    data={prInvolvementData}
+                    devs={selectedAuthors}
+                    query={buildInvolvesQuery('<username>')}
+                  />
+                  <ReviewCommentsCard
+                    data={reviewCommentsData}
+                    isLoading={reviewCommentsLoading}
+                  />
+                </>
               )}
             </>
           )}
