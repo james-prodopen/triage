@@ -84,9 +84,14 @@ export function ReviewCommentsCard({ data, isLoading }: ReviewCommentsCardProps)
     (acc, stat) => ({
       commentsReceived: acc.commentsReceived + stat.commentsReceived,
       prsAuthored: acc.prsAuthored + stat.prsAuthored,
+      totalChanges: acc.totalChanges + (stat.averagePRSize * stat.prsAuthored),
+      prSizeScoreSum: acc.prSizeScoreSum + stat.prSizeScore,
     }),
-    { commentsReceived: 0, prsAuthored: 0 }
+    { commentsReceived: 0, prsAuthored: 0, totalChanges: 0, prSizeScoreSum: 0 }
   );
+
+  const averagePRSize = totals.prsAuthored > 0 ? Math.round(totals.totalChanges / totals.prsAuthored) : 0;
+  const averagePRSizeScore = data.length > 0 ? totals.prSizeScoreSum / data.length : 0;
 
   return (
     <Card className="mb-6">
@@ -139,6 +144,24 @@ export function ReviewCommentsCard({ data, isLoading }: ReviewCommentsCardProps)
                 <TableHead className="text-right">
                   Comments / PR
                 </TableHead>
+                <TableHead
+                  className="text-right cursor-pointer hover:bg-muted/50"
+                  onClick={() => handleSort('totalChanges')}
+                >
+                  Total Changes {getSortIcon('totalChanges')}
+                </TableHead>
+                <TableHead
+                  className="text-right cursor-pointer hover:bg-muted/50"
+                  onClick={() => handleSort('averagePRSize')}
+                >
+                  Avg PR Size {getSortIcon('averagePRSize')}
+                </TableHead>
+                <TableHead
+                  className="text-right cursor-pointer hover:bg-muted/50"
+                  onClick={() => handleSort('prSizeScore')}
+                >
+                  PR Size Score {getSortIcon('prSizeScore')}
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -152,6 +175,9 @@ export function ReviewCommentsCard({ data, isLoading }: ReviewCommentsCardProps)
                     <TableCell className="text-right">{stat.commentsReceived}</TableCell>
                     <TableCell className="text-right">{stat.prsAuthored}</TableCell>
                     <TableCell className="text-right">{ratio}</TableCell>
+                    <TableCell className="text-right">{stat.totalChanges.toLocaleString()}</TableCell>
+                    <TableCell className="text-right">{stat.averagePRSize}</TableCell>
+                    <TableCell className="text-right">{stat.prSizeScore.toFixed(2)}</TableCell>
                   </TableRow>
                 );
               })}
@@ -162,6 +188,9 @@ export function ReviewCommentsCard({ data, isLoading }: ReviewCommentsCardProps)
                 <TableCell className="text-right">
                   {totals.prsAuthored > 0 ? (totals.commentsReceived / totals.prsAuthored).toFixed(1) : '0.0'}
                 </TableCell>
+                <TableCell className="text-right">{totals.totalChanges.toLocaleString()}</TableCell>
+                <TableCell className="text-right">{averagePRSize}</TableCell>
+                <TableCell className="text-right">{averagePRSizeScore.toFixed(2)}</TableCell>
               </TableRow>
             </TableBody>
           </Table>

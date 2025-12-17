@@ -14,6 +14,8 @@ export const GET_REVIEW_COMMENTS_RECEIVED = `
           author {
             login
           }
+          additions
+          deletions
           reviews(first: 10) {
             nodes {
               comments {
@@ -45,6 +47,8 @@ export interface GraphQLReview {
 
 export interface GraphQLPullRequest {
   author: GraphQLAuthor;
+  additions: number;
+  deletions: number;
   reviews: {
     nodes: GraphQLReview[];
   };

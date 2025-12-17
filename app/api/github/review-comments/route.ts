@@ -20,7 +20,7 @@ async function countCommentsReceived(
   owner: string,
   repo: string,
   author: string
-): Promise<{ commentsReceived: number; prsAuthored: number }> {
+): Promise<{ commentsReceived: number; prsAuthored: number; totalChanges: number }> {
   // Build search query: PRs authored by user, in repo, sorted by most recent first (will get first 100)
   const searchQuery = `repo:${owner}/${repo} is:pr author:${author} sort:created-desc`;
 
@@ -33,17 +33,19 @@ async function countCommentsReceived(
   const prs = response.search.nodes;
   const prsAuthored = prs.length;
 
-  // Count review comments on these PRs
+  // Count review comments and total changes on these PRs
   let commentsReceived = 0;
+  let totalChanges = 0;
   for (const pr of prs) {
     if (pr.reviews?.nodes) {
       for (const review of pr.reviews.nodes) {
         commentsReceived += review.comments?.totalCount || 0;
       }
     }
+    totalChanges += (pr.additions || 0) + (pr.deletions || 0);
   }
 
-  return { commentsReceived, prsAuthored };
+  return { commentsReceived, prsAuthored, totalChanges };
 }
 
 export async function GET(request: NextRequest) {
@@ -79,7 +81,7 @@ export async function GET(request: NextRequest) {
             `Error fetching review comments for ${author} in ${repository.id}:`,
             error.message
           );
-          return { commentsReceived: 0, prsAuthored: 0 };
+          return { commentsReceived: 0, prsAuthored: 0, totalChanges: 0 };
         }),
       }))
     );
@@ -87,16 +89,45 @@ export async function GET(request: NextRequest) {
     const results = await Promise.all(promises);
 
     // Aggregate by author
-    const stats: ReviewCommentStats[] = authors.map(author => {
+    const stats = authors.map(author => {
       const authorResults = results.filter(r => r.author === author);
+      const commentsReceived = authorResults.reduce((sum, r) => sum + r.data.commentsReceived, 0);
+      const prsAuthored = authorResults.reduce((sum, r) => sum + r.data.prsAuthored, 0);
+      const totalChanges = authorResults.reduce((sum, r) => sum + r.data.totalChanges, 0);
+      const averagePRSize = prsAuthored > 0 ? Math.round(totalChanges / prsAuthored) : 0;
+
       return {
         author,
-        commentsReceived: authorResults.reduce((sum, r) => sum + r.data.commentsReceived, 0),
-        prsAuthored: authorResults.reduce((sum, r) => sum + r.data.prsAuthored, 0),
+        commentsReceived,
+        prsAuthored,
+        totalChanges,
+        averagePRSize,
       };
     });
 
-    return NextResponse.json({ stats });
+    // Calculate min-max normalized PR size scores (smaller is better)
+    const prSizes = stats.map(s => s.averagePRSize).filter(size => size > 0);
+    const minSize = prSizes.length > 0 ? Math.min(...prSizes) : 0;
+    const maxSize = prSizes.length > 0 ? Math.max(...prSizes) : 0;
+
+    const statsWithScores: ReviewCommentStats[] = stats.map(stat => {
+      let prSizeScore = 0;
+      if (stat.averagePRSize > 0 && maxSize > minSize) {
+        // Normalize between 0-1, then subtract from 1 (smaller PRs get higher scores)
+        const normalized = (stat.averagePRSize - minSize) / (maxSize - minSize);
+        prSizeScore = 1 - normalized;
+      } else if (stat.averagePRSize > 0 && maxSize === minSize) {
+        // All PR sizes are the same
+        prSizeScore = 0.5;
+      }
+
+      return {
+        ...stat,
+        prSizeScore,
+      };
+    });
+
+    return NextResponse.json({ stats: statsWithScores });
   } catch (error: any) {
     console.error('Error in review-comments API:', error);
     return NextResponse.json(

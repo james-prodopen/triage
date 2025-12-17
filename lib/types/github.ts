@@ -42,4 +42,7 @@ export interface ReviewCommentStats {
   author: string;
   commentsReceived: number;
   prsAuthored: number;
+  totalChanges: number;
+  averagePRSize: number;
+  prSizeScore: number;
 }
