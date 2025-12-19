@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { PolarAngleAxis, PolarGrid, Radar, RadarChart } from 'recharts';
 import {
   Card,
@@ -20,13 +20,13 @@ import {
   AlertDescription,
   AlertTitle,
 } from '@/components/ui/alert';
-import { Toggle } from '@/components/ui/toggle';
-import { EyeOff, Info } from 'lucide-react';
+import { Info } from 'lucide-react';
 import { ReviewCommentStats } from '@/lib/types/github';
 
 interface DeveloperRadarChartsProps {
   data: ReviewCommentStats[];
   isLoading: boolean;
+  isAnonymized: boolean;
 }
 
 interface MetricRanges {
@@ -103,8 +103,8 @@ function calculateMetricRanges(data: ReviewCommentStats[]): {
 export function DeveloperRadarCharts({
   data,
   isLoading,
+  isAnonymized,
 }: DeveloperRadarChartsProps) {
-  const [anonymize, setAnonymize] = useState(false);
 
   const { metrics, ranges } = useMemo(
     () => calculateMetricRanges(data),
@@ -138,24 +138,13 @@ export function DeveloperRadarCharts({
   }
 
   const getDisplayName = (author: string, index: number): string => {
-    return anonymize ? `dev${index + 1}` : author;
+    return isAnonymized ? `dev${index + 1}` : author;
   };
 
   return (
     <Card className="mb-6">
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle>PR summary, per developer</CardTitle>
-          <Toggle
-            pressed={anonymize}
-            onPressedChange={setAnonymize}
-            aria-label="Toggle anonymization"
-            size="sm"
-          >
-            <EyeOff className="h-4 w-4 mr-2" />
-            {anonymize ? 'Anonymized' : 'Anonymize'}
-          </Toggle>
-        </div>
+        <CardTitle>PR summary, per developer</CardTitle>
         <CardDescription>
           Metrics are averages, normalized from 0 to the max value of that metric across these devs.
         </CardDescription>

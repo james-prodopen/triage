@@ -4,9 +4,8 @@ import { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { CartesianGrid, XAxis, YAxis, Line, LineChart } from 'recharts';
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from '@/components/ui/chart';
-import { Toggle } from '@/components/ui/toggle';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Info, Eye, EyeOff } from 'lucide-react';
+import { Info } from 'lucide-react';
 import { createSafeChartKey, CHART_COLORS } from '@/lib/utils/chart-helpers';
 import {
   Select,
@@ -20,12 +19,12 @@ interface PRInvolvementCardProps {
   data: Array<{ date: string; [dev: string]: string | number }>;
   devs: string[];
   query: string;
+  isAnonymized: boolean;
 }
 
-export function PRInvolvementCard({ data, devs, query }: PRInvolvementCardProps) {
+export function PRInvolvementCard({ data, devs, query, isAnonymized }: PRInvolvementCardProps) {
   const [selectedDev, setSelectedDev] = useState<string>(devs[0] || '');
   const [balanceScore, setBalanceScore] = useState<'gini' | 'entropy' | 'both'>('gini');
-  const [isAnonymized, setIsAnonymized] = useState<boolean>(false);
 
   // Create placeholder mapping for dev names
   const devPlaceholders = useMemo(() => {
@@ -106,51 +105,41 @@ export function PRInvolvementCard({ data, devs, query }: PRInvolvementCardProps)
             </ul>
           </AlertDescription>
         </Alert>
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium">Highlight dev:</label>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium">Highlight dev:</label>
+          <Select
+            value={selectedDev}
+            onValueChange={(value) => setSelectedDev(value)}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {devs.map((dev) => (
+                <SelectItem key={dev} value={dev}>
+                  {isAnonymized ? devPlaceholders.get(dev) : dev}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium">Balance score:</label>
             <Select
-              value={selectedDev}
-              onValueChange={(value) => setSelectedDev(value)}
+              value={balanceScore}
+              onValueChange={(value) => setBalanceScore(value as 'gini' | 'entropy' | 'both')}
             >
-              <SelectTrigger className="w-[200px]">
+              <SelectTrigger className="w-[150px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {devs.map((dev) => (
-                  <SelectItem key={dev} value={dev}>
-                    {isAnonymized ? devPlaceholders.get(dev) : dev}
-                  </SelectItem>
-                ))}
+                <SelectItem value="gini">Gini</SelectItem>
+                <SelectItem value="entropy">Entropy</SelectItem>
+                <SelectItem value="both">Both</SelectItem>
               </SelectContent>
             </Select>
-            </div>
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium">Balance score:</label>
-              <Select
-                value={balanceScore}
-                onValueChange={(value) => setBalanceScore(value as 'gini' | 'entropy' | 'both')}
-              >
-                <SelectTrigger className="w-[150px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="gini">Gini</SelectItem>
-                  <SelectItem value="entropy">Entropy</SelectItem>
-                  <SelectItem value="both">Both</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </div>
-          <Toggle
-            pressed={isAnonymized}
-            onPressedChange={setIsAnonymized}
-            aria-label="Toggle anonymization"
-          >
-            {isAnonymized ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            <span className="ml-2 text-sm">{isAnonymized ? 'Anonymized' : 'Anonymize'}</span>
-          </Toggle>
         </div>
         <ChartContainer config={chartConfig}>
           <LineChart

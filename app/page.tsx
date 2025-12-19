@@ -3,6 +3,8 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Toggle } from '@/components/ui/toggle';
+import { EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { ChartConfig } from '@/components/ui/chart';
 import { Spinner } from '@/components/ui/spinner';
@@ -57,6 +59,7 @@ export default function Home() {
   const [prInvolvement, setPrInvolvement] = useState<Map<string, Set<string>>>(new Map());
   const [reviewCommentsData, setReviewCommentsData] = useState<ReviewCommentStats[]>([]);
   const [reviewCommentsLoading, setReviewCommentsLoading] = useState<boolean>(false);
+  const [isAnonymized, setIsAnonymized] = useState<boolean>(false);
 
   // Save configuration to file
   const saveConfig = async () => {
@@ -687,11 +690,24 @@ export default function Home() {
       <SidebarInset className="overflow-x-hidden">
         <main className="flex flex-1 flex-col gap-4 p-4 w-full min-w-0">
           <div className="flex flex-col gap-2">
-            <h2 className="text-2xl font-bold">
-              {activeSection === 'configuration' && 'Configuration'}
-              {activeSection === 'code-health' && 'Code health'}
-              {activeSection === 'team-health' && 'Team health'}
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold">
+                {activeSection === 'configuration' && 'Configuration'}
+                {activeSection === 'code-health' && 'Code health'}
+                {activeSection === 'team-health' && 'Team health'}
+              </h2>
+              {activeSection === 'team-health' && (
+                <Toggle
+                  pressed={isAnonymized}
+                  onPressedChange={setIsAnonymized}
+                  aria-label="Toggle anonymization"
+                  size="sm"
+                >
+                  <EyeOff className="h-4 w-4 mr-2" />
+                  {isAnonymized ? 'Anonymized' : 'Anonymize'}
+                </Toggle>
+              )}
+            </div>
             {activeSection === 'configuration' && lastSavedAt && (
               <p className="text-sm text-muted-foreground">
                 Auto-saved at {new Date(lastSavedAt).toLocaleString()}
@@ -702,7 +718,6 @@ export default function Home() {
                 Track code quality metrics and bugfix patterns
               </p>
             )}
-            {activeSection === 'team-health' && null}
           </div>
 
           {githubLoading && loadingProgress.totalRepos > 0 && (
@@ -805,15 +820,18 @@ export default function Home() {
                   <DeveloperRadarCharts
                     data={reviewCommentsData}
                     isLoading={reviewCommentsLoading}
+                    isAnonymized={isAnonymized}
                   />
                   <PRInvolvementCard
                     data={prInvolvementData}
                     devs={selectedAuthors}
                     query={buildInvolvesQuery('<username>')}
+                    isAnonymized={isAnonymized}
                   />
                   <ReviewCommentsCard
                     data={reviewCommentsData}
                     isLoading={reviewCommentsLoading}
+                    isAnonymized={isAnonymized}
                   />
                 </>
               )}

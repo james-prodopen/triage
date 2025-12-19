@@ -3,23 +3,21 @@
 import { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { Toggle } from '@/components/ui/toggle';
-import { Eye, EyeOff, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import type { ReviewCommentStats } from '@/lib/types/github';
 
 interface ReviewCommentsCardProps {
   data: ReviewCommentStats[];
   isLoading: boolean;
+  isAnonymized: boolean;
 }
 
 type SortField = keyof ReviewCommentStats;
 type SortDirection = 'asc' | 'desc';
 
-export function ReviewCommentsCard({ data, isLoading }: ReviewCommentsCardProps) {
+export function ReviewCommentsCard({ data, isLoading, isAnonymized }: ReviewCommentsCardProps) {
   const [sortField, setSortField] = useState<SortField>('author');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
-  const [isAnonymized, setIsAnonymized] = useState<boolean>(false);
 
   // Create placeholder mapping for dev names
   const devPlaceholders = useMemo(() => {
@@ -99,23 +97,10 @@ export function ReviewCommentsCard({ data, isLoading }: ReviewCommentsCardProps)
   return (
     <Card className="mb-6">
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle>PR metrics, per developer</CardTitle>
-            <CardDescription>
-              Metrics include the most recent 100 PRs authored by the dev in each repo. A maximum of 10 reviews are sampled for each PR.
-            </CardDescription>
-          </div>
-          <Toggle
-            pressed={isAnonymized}
-            onPressedChange={setIsAnonymized}
-            aria-label="Toggle anonymization"
-            size="sm"
-          >
-            {isAnonymized ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            <span className="ml-2 text-sm">{isAnonymized ? 'Anonymized' : 'Show Names'}</span>
-          </Toggle>
-        </div>
+        <CardTitle>PR metrics, per developer</CardTitle>
+        <CardDescription>
+          Metrics include the most recent 100 PRs authored by the dev in each repo. A maximum of 10 reviews are sampled for each PR.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         {isLoading ? (
