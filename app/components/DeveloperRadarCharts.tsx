@@ -5,6 +5,7 @@ import { PolarAngleAxis, PolarGrid, Radar, RadarChart } from 'recharts';
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
@@ -14,8 +15,13 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from '@/components/ui/chart';
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from '@/components/ui/alert';
 import { Toggle } from '@/components/ui/toggle';
-import { EyeOff } from 'lucide-react';
+import { EyeOff, Info } from 'lucide-react';
 import { ReviewCommentStats } from '@/lib/types/github';
 
 interface DeveloperRadarChartsProps {
@@ -113,9 +119,9 @@ export function DeveloperRadarCharts({
     return (
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold">Developer Metrics</h2>
+          <h2 className="text-xl font-semibold">Developer metrics</h2>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           {[1, 2, 3].map((i) => (
             <Card key={i}>
               <CardHeader>
@@ -136,83 +142,111 @@ export function DeveloperRadarCharts({
   };
 
   return (
-    <div className="mb-6">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold">Developer Metrics</h2>
-        <Toggle
-          pressed={anonymize}
-          onPressedChange={setAnonymize}
-          aria-label="Toggle anonymization"
-          size="sm"
-        >
-          <EyeOff className="h-4 w-4 mr-2" />
-          Anonymize
-        </Toggle>
-      </div>
+    <Card className="mb-6">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle>PR summary, per developer</CardTitle>
+          <Toggle
+            pressed={anonymize}
+            onPressedChange={setAnonymize}
+            aria-label="Toggle anonymization"
+            size="sm"
+          >
+            <EyeOff className="h-4 w-4 mr-2" />
+            {anonymize ? 'Anonymized' : 'Anonymize'}
+          </Toggle>
+        </div>
+        <CardDescription>
+          Metrics are averages, normalized from 0 to the max value of that metric across these devs.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <Alert>
+          <Info />
+          <AlertTitle>Interpreting this chart</AlertTitle>
+          <AlertDescription>
+            <ul className="list-disc list-inside mt-2">
+              <li>Churn: Reviews per PR - higher suggests lower quality PRs requiring rework.</li>
+              <li>Complexity: Comments per PR review - higher suggests greater complexity.</li>
+              <li>Verbosity: LOC changed per PR - small PRs are easier to review, less likely to contain AI bloat.</li>
+              <li>Sprawl: Files changed per PR - higher suggests riskier PRs; combine with verbosity.</li>
+            </ul>
+            <p className="font-semibold mt-2">Notes</p>
+            <ul className="list-disc list-inside mt-2">
+              <li>Includes the most recent 100 PRs authored by the dev in each repo.</li>
+              <li>A maximum of 10 reviews are sampled for each PR.</li>
+            </ul>
+          </AlertDescription>
+        </Alert>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 w-full">
+          {data.map((stat, index) => {
+            const devMetrics = metrics.get(stat.author);
+            if (!devMetrics) return null;
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {data.map((stat, index) => {
-          const devMetrics = metrics.get(stat.author);
-          if (!devMetrics) return null;
+            // Normalize metrics for display
+            const chartData = [
+              {
+                metric: 'Complexity',
+                value: normalize(
+                  devMetrics.commentsPerReview,
+                  ranges.commentsPerReview.min,
+                  ranges.commentsPerReview.max
+                ),
+                actualValue: devMetrics.commentsPerReview.toFixed(1),
+                description: 'comments per review',
+              },
+              {
+                metric: 'Churn',
+                value: normalize(
+                  devMetrics.reviewsPerPR,
+                  ranges.reviewsPerPR.min,
+                  ranges.reviewsPerPR.max
+                ),
+                actualValue: devMetrics.reviewsPerPR.toFixed(1),
+                description: 'reviews per PR',
+              },
+              {
+                metric: 'Verbosity',
+                value: normalize(
+                  devMetrics.avgPRSize,
+                  ranges.avgPRSize.min,
+                  ranges.avgPRSize.max
+                ),
+                actualValue: devMetrics.avgPRSize.toString(),
+                description: 'lines changed per PR',
+              },
+              {
+                metric: 'Sprawl',
+                value: normalize(
+                  devMetrics.avgFilesChanged,
+                  ranges.avgFilesChanged.min,
+                  ranges.avgFilesChanged.max
+                ),
+                actualValue: devMetrics.avgFilesChanged.toString(),
+                description: 'files changed per PR',
+              },
+            ];
 
-          // Normalize metrics for display
-          const chartData = [
-            {
-              metric: 'Comments per Review',
-              value: normalize(
-                devMetrics.commentsPerReview,
-                ranges.commentsPerReview.min,
-                ranges.commentsPerReview.max
-              ),
-              actualValue: devMetrics.commentsPerReview.toFixed(1),
-            },
-            {
-              metric: 'Reviews per PR',
-              value: normalize(
-                devMetrics.reviewsPerPR,
-                ranges.reviewsPerPR.min,
-                ranges.reviewsPerPR.max
-              ),
-              actualValue: devMetrics.reviewsPerPR.toFixed(1),
-            },
-            {
-              metric: 'Average PR Size',
-              value: normalize(
-                devMetrics.avgPRSize,
-                ranges.avgPRSize.min,
-                ranges.avgPRSize.max
-              ),
-              actualValue: devMetrics.avgPRSize.toString(),
-            },
-            {
-              metric: 'Average Files Changed',
-              value: normalize(
-                devMetrics.avgFilesChanged,
-                ranges.avgFilesChanged.min,
-                ranges.avgFilesChanged.max
-              ),
-              actualValue: devMetrics.avgFilesChanged.toString(),
-            },
-          ];
+            const chartConfig = {
+              value: {
+                label: 'Value',
+                color: 'var(--chart-1)',
+              },
+            } satisfies ChartConfig;
 
-          const chartConfig = {
-            value: {
-              label: 'Value',
-              color: 'var(--chart-1)',
-            },
-          } satisfies ChartConfig;
-
-          return (
-            <Card key={stat.author}>
-              <CardHeader className="items-center pb-4">
-                <CardTitle>{getDisplayName(stat.author, index)}</CardTitle>
-              </CardHeader>
-              <CardContent className="pb-0">
+            return (
+              <div key={stat.author} className="min-w-0">
+                <div className="text-center mb-2">
+                  <h3 className="font-semibold">{getDisplayName(stat.author, index)}</h3>
+                </div>
                 <ChartContainer
                   config={chartConfig}
-                  className="mx-auto aspect-square max-h-[350px]"
+                  className="aspect-square"
                 >
-                  <RadarChart data={chartData} margin={{ top: 30, right: 40, bottom: 20, left: 40 }}>
+                  <RadarChart
+                    data={chartData}
+                    margin={{right: 25, left: 25}}
+                  >
                     <ChartTooltip
                       cursor={false}
                       content={
@@ -225,7 +259,7 @@ export function DeveloperRadarCharts({
                                   {props.payload.metric}
                                 </div>
                                 <div className="text-muted-foreground">
-                                  {props.payload.actualValue}
+                                  {props.payload.actualValue} {props.payload.description}
                                 </div>
                               </>
                             );
@@ -233,7 +267,11 @@ export function DeveloperRadarCharts({
                         />
                       }
                     />
-                    <PolarGrid gridType="circle" radialLines={true} />
+                    <PolarGrid
+                      gridType="circle"
+                      radialLines={true}
+                      className="fill-(--color-value) opacity-20"
+                    />
                     <PolarAngleAxis dataKey="metric" tick={{ fontSize: 12 }} />
                     <Radar
                       dataKey="value"
@@ -246,11 +284,11 @@ export function DeveloperRadarCharts({
                     />
                   </RadarChart>
                 </ChartContainer>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-    </div>
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

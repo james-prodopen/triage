@@ -684,8 +684,8 @@ export default function Home() {
         isLoading={githubLoading}
         isConfigurationComplete={isConfigurationComplete}
       />
-      <SidebarInset>
-        <main className="flex flex-1 flex-col gap-4 p-4">
+      <SidebarInset className="overflow-x-hidden">
+        <main className="flex flex-1 flex-col gap-4 p-4 w-full min-w-0">
           <div className="flex flex-col gap-2">
             <h2 className="text-2xl font-bold">
               {activeSection === 'configuration' && 'Configuration'}
