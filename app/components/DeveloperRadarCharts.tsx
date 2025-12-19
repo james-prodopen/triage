@@ -27,12 +27,14 @@ interface MetricRanges {
   commentsPerReview: { min: number; max: number };
   reviewsPerPR: { min: number; max: number };
   avgPRSize: { min: number; max: number };
+  avgFilesChanged: { min: number; max: number };
 }
 
 interface DeveloperMetrics {
   commentsPerReview: number;
   reviewsPerPR: number;
   avgPRSize: number;
+  avgFilesChanged: number;
 }
 
 function normalize(value: number, min: number, max: number): number {
@@ -56,11 +58,13 @@ function calculateMetricRanges(data: ReviewCommentStats[]): {
     const reviewsPerPR =
       stat.prsAuthored > 0 ? stat.reviewsReceived / stat.prsAuthored : 0;
     const avgPRSize = stat.averagePRSize;
+    const avgFilesChanged = stat.averageFilesChanged;
 
     metrics.set(stat.author, {
       commentsPerReview,
       reviewsPerPR,
       avgPRSize,
+      avgFilesChanged,
     });
   });
 
@@ -80,6 +84,10 @@ function calculateMetricRanges(data: ReviewCommentStats[]): {
     avgPRSize: {
       min: 0,
       max: Math.max(...allMetrics.map((m) => m.avgPRSize)),
+    },
+    avgFilesChanged: {
+      min: 0,
+      max: Math.max(...allMetrics.map((m) => m.avgFilesChanged)),
     },
   };
 
@@ -175,6 +183,15 @@ export function DeveloperRadarCharts({
                 ranges.avgPRSize.max
               ),
               actualValue: devMetrics.avgPRSize.toString(),
+            },
+            {
+              metric: 'Average Files Changed',
+              value: normalize(
+                devMetrics.avgFilesChanged,
+                ranges.avgFilesChanged.min,
+                ranges.avgFilesChanged.max
+              ),
+              actualValue: devMetrics.avgFilesChanged.toString(),
             },
           ];
 

@@ -85,13 +85,15 @@ export function ReviewCommentsCard({ data, isLoading }: ReviewCommentsCardProps)
       reviewsReceived: acc.reviewsReceived + stat.reviewsReceived,
       commentsReceived: acc.commentsReceived + stat.commentsReceived,
       prsAuthored: acc.prsAuthored + stat.prsAuthored,
-      totalChanges: acc.totalChanges + (stat.averagePRSize * stat.prsAuthored),
+      totalChanges: acc.totalChanges + stat.totalChanges,
+      totalFilesChanged: acc.totalFilesChanged + stat.totalFilesChanged,
       prSizeScoreSum: acc.prSizeScoreSum + stat.prSizeScore,
     }),
-    { reviewsReceived: 0, commentsReceived: 0, prsAuthored: 0, totalChanges: 0, prSizeScoreSum: 0 }
+    { reviewsReceived: 0, commentsReceived: 0, prsAuthored: 0, totalChanges: 0, totalFilesChanged: 0, prSizeScoreSum: 0 }
   );
 
   const averagePRSize = totals.prsAuthored > 0 ? Math.round(totals.totalChanges / totals.prsAuthored) : 0;
+  const averageFilesChanged = totals.prsAuthored > 0 ? Math.round((totals.totalFilesChanged / totals.prsAuthored) * 100) / 100 : 0;
   const averagePRSizeScore = data.length > 0 ? totals.prSizeScoreSum / data.length : 0;
 
   return (
@@ -171,6 +173,18 @@ export function ReviewCommentsCard({ data, isLoading }: ReviewCommentsCardProps)
                 </TableHead>
                 <TableHead
                   className="text-right cursor-pointer hover:bg-muted/50"
+                  onClick={() => handleSort('totalFilesChanged')}
+                >
+                  Total Files Changed {getSortIcon('totalFilesChanged')}
+                </TableHead>
+                <TableHead
+                  className="text-right cursor-pointer hover:bg-muted/50"
+                  onClick={() => handleSort('averageFilesChanged')}
+                >
+                  Avg Files Changed {getSortIcon('averageFilesChanged')}
+                </TableHead>
+                <TableHead
+                  className="text-right cursor-pointer hover:bg-muted/50"
                   onClick={() => handleSort('prSizeScore')}
                 >
                   PR Size Score {getSortIcon('prSizeScore')}
@@ -199,6 +213,8 @@ export function ReviewCommentsCard({ data, isLoading }: ReviewCommentsCardProps)
                     <TableCell className="text-right">{commentsPerReview}</TableCell>
                     <TableCell className="text-right">{stat.totalChanges.toLocaleString()}</TableCell>
                     <TableCell className="text-right">{stat.averagePRSize}</TableCell>
+                    <TableCell className="text-right">{stat.totalFilesChanged}</TableCell>
+                    <TableCell className="text-right">{stat.averageFilesChanged.toFixed(2)}</TableCell>
                     <TableCell className="text-right">{stat.prSizeScore.toFixed(2)}</TableCell>
                   </TableRow>
                 );
@@ -219,6 +235,8 @@ export function ReviewCommentsCard({ data, isLoading }: ReviewCommentsCardProps)
                 </TableCell>
                 <TableCell className="text-right">{totals.totalChanges.toLocaleString()}</TableCell>
                 <TableCell className="text-right">{averagePRSize}</TableCell>
+                <TableCell className="text-right">{totals.totalFilesChanged}</TableCell>
+                <TableCell className="text-right">{averageFilesChanged.toFixed(2)}</TableCell>
                 <TableCell className="text-right">{averagePRSizeScore.toFixed(2)}</TableCell>
               </TableRow>
             </TableBody>

@@ -20,7 +20,7 @@ async function countCommentsReceived(
   owner: string,
   repo: string,
   author: string
-): Promise<{ reviewsReceived: number; commentsReceived: number; prsAuthored: number; totalChanges: number }> {
+): Promise<{ reviewsReceived: number; commentsReceived: number; prsAuthored: number; totalChanges: number; totalFilesChanged: number }> {
   // Build search query: PRs authored by user, in repo, sorted by most recent first (will get first 100)
   const searchQuery = `repo:${owner}/${repo} is:pr author:${author} sort:created-desc`;
 
@@ -33,10 +33,11 @@ async function countCommentsReceived(
   const prs = response.search.nodes;
   const prsAuthored = prs.length;
 
-  // Count reviews, review comments, and total changes on these PRs
+  // Count reviews, review comments, total changes, and files changed on these PRs
   let reviewsReceived = 0;
   let commentsReceived = 0;
   let totalChanges = 0;
+  let totalFilesChanged = 0;
   for (const pr of prs) {
     if (pr.reviews) {
       reviewsReceived += pr.reviews.totalCount || 0;
@@ -47,9 +48,10 @@ async function countCommentsReceived(
       }
     }
     totalChanges += (pr.additions || 0) + (pr.deletions || 0);
+    totalFilesChanged += pr.changedFiles || 0;
   }
 
-  return { reviewsReceived, commentsReceived, prsAuthored, totalChanges };
+  return { reviewsReceived, commentsReceived, prsAuthored, totalChanges, totalFilesChanged };
 }
 
 export async function GET(request: NextRequest) {
@@ -85,7 +87,7 @@ export async function GET(request: NextRequest) {
             `Error fetching review comments for ${author} in ${repository.id}:`,
             error.message
           );
-          return { reviewsReceived: 0, commentsReceived: 0, prsAuthored: 0, totalChanges: 0 };
+          return { reviewsReceived: 0, commentsReceived: 0, prsAuthored: 0, totalChanges: 0, totalFilesChanged: 0 };
         }),
       }))
     );
@@ -99,7 +101,9 @@ export async function GET(request: NextRequest) {
       const commentsReceived = authorResults.reduce((sum, r) => sum + r.data.commentsReceived, 0);
       const prsAuthored = authorResults.reduce((sum, r) => sum + r.data.prsAuthored, 0);
       const totalChanges = authorResults.reduce((sum, r) => sum + r.data.totalChanges, 0);
+      const totalFilesChanged = authorResults.reduce((sum, r) => sum + r.data.totalFilesChanged, 0);
       const averagePRSize = prsAuthored > 0 ? Math.round(totalChanges / prsAuthored) : 0;
+      const averageFilesChanged = prsAuthored > 0 ? Math.round((totalFilesChanged / prsAuthored) * 100) / 100 : 0;
 
       return {
         author,
@@ -108,6 +112,8 @@ export async function GET(request: NextRequest) {
         prsAuthored,
         totalChanges,
         averagePRSize,
+        totalFilesChanged,
+        averageFilesChanged,
       };
     });
 

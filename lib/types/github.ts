@@ -45,5 +45,7 @@ export interface ReviewCommentStats {
   prsAuthored: number;
   totalChanges: number;
   averagePRSize: number;
+  totalFilesChanged: number;
+  averageFilesChanged: number;
   prSizeScore: number;
 }
