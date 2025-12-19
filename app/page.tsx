@@ -19,6 +19,7 @@ import { CodeHotspotsCard } from './components/CodeHotspotsCard';
 import { ConfigurationCard } from './components/ConfigurationCard';
 import { PRInvolvementCard } from './components/PRInvolvementCard';
 import { ReviewCommentsCard } from './components/ReviewCommentsCard';
+import { DeveloperRadarCharts } from './components/DeveloperRadarCharts';
 import { AppSidebar } from './components/AppSidebar';
 import { SidebarInset } from '@/components/ui/sidebar';
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty';
@@ -801,6 +802,10 @@ export default function Home() {
                 </Empty>
               ) : (
                 <>
+                  <DeveloperRadarCharts
+                    data={reviewCommentsData}
+                    isLoading={reviewCommentsLoading}
+                  />
                   <PRInvolvementCard
                     data={prInvolvementData}
                     devs={selectedAuthors}
