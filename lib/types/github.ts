@@ -40,6 +40,7 @@ export interface LoadingProgress {
 
 export interface ReviewCommentStats {
   author: string;
+  reviewsReceived: number;
   commentsReceived: number;
   prsAuthored: number;
   totalChanges: number;

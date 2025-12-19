@@ -13,14 +13,14 @@ interface Repository {
 }
 
 /**
- * Count review comments on PRs authored by a specific user
+ * Count reviews and review comments on PRs authored by a specific user
  */
 async function countCommentsReceived(
   fetchGraphQL: <T = any>(query: string, variables?: Record<string, any>) => Promise<T>,
   owner: string,
   repo: string,
   author: string
-): Promise<{ commentsReceived: number; prsAuthored: number; totalChanges: number }> {
+): Promise<{ reviewsReceived: number; commentsReceived: number; prsAuthored: number; totalChanges: number }> {
   // Build search query: PRs authored by user, in repo, sorted by most recent first (will get first 100)
   const searchQuery = `repo:${owner}/${repo} is:pr author:${author} sort:created-desc`;
 
@@ -33,19 +33,23 @@ async function countCommentsReceived(
   const prs = response.search.nodes;
   const prsAuthored = prs.length;
 
-  // Count review comments and total changes on these PRs
+  // Count reviews, review comments, and total changes on these PRs
+  let reviewsReceived = 0;
   let commentsReceived = 0;
   let totalChanges = 0;
   for (const pr of prs) {
-    if (pr.reviews?.nodes) {
-      for (const review of pr.reviews.nodes) {
-        commentsReceived += review.comments?.totalCount || 0;
+    if (pr.reviews) {
+      reviewsReceived += pr.reviews.totalCount || 0;
+      if (pr.reviews.nodes) {
+        for (const review of pr.reviews.nodes) {
+          commentsReceived += review.comments?.totalCount || 0;
+        }
       }
     }
     totalChanges += (pr.additions || 0) + (pr.deletions || 0);
   }
 
-  return { commentsReceived, prsAuthored, totalChanges };
+  return { reviewsReceived, commentsReceived, prsAuthored, totalChanges };
 }
 
 export async function GET(request: NextRequest) {
@@ -81,7 +85,7 @@ export async function GET(request: NextRequest) {
             `Error fetching review comments for ${author} in ${repository.id}:`,
             error.message
           );
-          return { commentsReceived: 0, prsAuthored: 0, totalChanges: 0 };
+          return { reviewsReceived: 0, commentsReceived: 0, prsAuthored: 0, totalChanges: 0 };
         }),
       }))
     );
@@ -91,6 +95,7 @@ export async function GET(request: NextRequest) {
     // Aggregate by author
     const stats = authors.map(author => {
       const authorResults = results.filter(r => r.author === author);
+      const reviewsReceived = authorResults.reduce((sum, r) => sum + r.data.reviewsReceived, 0);
       const commentsReceived = authorResults.reduce((sum, r) => sum + r.data.commentsReceived, 0);
       const prsAuthored = authorResults.reduce((sum, r) => sum + r.data.prsAuthored, 0);
       const totalChanges = authorResults.reduce((sum, r) => sum + r.data.totalChanges, 0);
@@ -98,6 +103,7 @@ export async function GET(request: NextRequest) {
 
       return {
         author,
+        reviewsReceived,
         commentsReceived,
         prsAuthored,
         totalChanges,

@@ -17,6 +17,7 @@ export const GET_REVIEW_COMMENTS_RECEIVED = `
           additions
           deletions
           reviews(first: 10) {
+            totalCount
             nodes {
               comments {
                 totalCount
@@ -50,6 +51,7 @@ export interface GraphQLPullRequest {
   additions: number;
   deletions: number;
   reviews: {
+    totalCount: number;
     nodes: GraphQLReview[];
   };
 }
