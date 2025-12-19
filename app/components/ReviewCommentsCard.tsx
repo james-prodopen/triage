@@ -101,9 +101,9 @@ export function ReviewCommentsCard({ data, isLoading }: ReviewCommentsCardProps)
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Review comments by developer</CardTitle>
+            <CardTitle>PR metrics, per developer</CardTitle>
             <CardDescription>
-              Review comments received on PRs authored by each developer
+              Metrics include the most recent 100 PRs authored by the dev in each repo. A maximum of 10 reviews are sampled for each PR.
             </CardDescription>
           </div>
           <Toggle
@@ -142,13 +142,13 @@ export function ReviewCommentsCard({ data, isLoading }: ReviewCommentsCardProps)
                   className="text-right cursor-pointer hover:bg-muted/50"
                   onClick={() => handleSort('commentsReceived')}
                 >
-                  Review Comments {getSortIcon('commentsReceived')}
+                  Review comments {getSortIcon('commentsReceived')}
                 </TableHead>
                 <TableHead
                   className="text-right cursor-pointer hover:bg-muted/50"
                   onClick={() => handleSort('prsAuthored')}
                 >
-                  PRs Authored {getSortIcon('prsAuthored')}
+                  PRs authored {getSortIcon('prsAuthored')}
                 </TableHead>
                 <TableHead className="text-right">
                   Reviews / PR
@@ -157,37 +157,31 @@ export function ReviewCommentsCard({ data, isLoading }: ReviewCommentsCardProps)
                   Comments / PR
                 </TableHead>
                 <TableHead className="text-right">
-                  Comments / Review
+                  Comments / review
                 </TableHead>
                 <TableHead
                   className="text-right cursor-pointer hover:bg-muted/50"
                   onClick={() => handleSort('totalChanges')}
                 >
-                  Total Changes {getSortIcon('totalChanges')}
+                  Total LOC {getSortIcon('totalChanges')}
                 </TableHead>
                 <TableHead
                   className="text-right cursor-pointer hover:bg-muted/50"
                   onClick={() => handleSort('averagePRSize')}
                 >
-                  Avg PR Size {getSortIcon('averagePRSize')}
+                  Avg PR size {getSortIcon('averagePRSize')}
                 </TableHead>
                 <TableHead
                   className="text-right cursor-pointer hover:bg-muted/50"
                   onClick={() => handleSort('totalFilesChanged')}
                 >
-                  Total Files Changed {getSortIcon('totalFilesChanged')}
+                  Total files changed {getSortIcon('totalFilesChanged')}
                 </TableHead>
                 <TableHead
                   className="text-right cursor-pointer hover:bg-muted/50"
                   onClick={() => handleSort('averageFilesChanged')}
                 >
-                  Avg Files Changed {getSortIcon('averageFilesChanged')}
-                </TableHead>
-                <TableHead
-                  className="text-right cursor-pointer hover:bg-muted/50"
-                  onClick={() => handleSort('prSizeScore')}
-                >
-                  PR Size Score {getSortIcon('prSizeScore')}
+                  Avg files changed {getSortIcon('averageFilesChanged')}
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -215,7 +209,6 @@ export function ReviewCommentsCard({ data, isLoading }: ReviewCommentsCardProps)
                     <TableCell className="text-right">{stat.averagePRSize}</TableCell>
                     <TableCell className="text-right">{stat.totalFilesChanged}</TableCell>
                     <TableCell className="text-right">{stat.averageFilesChanged.toFixed(2)}</TableCell>
-                    <TableCell className="text-right">{stat.prSizeScore.toFixed(2)}</TableCell>
                   </TableRow>
                 );
               })}
@@ -237,7 +230,6 @@ export function ReviewCommentsCard({ data, isLoading }: ReviewCommentsCardProps)
                 <TableCell className="text-right">{averagePRSize}</TableCell>
                 <TableCell className="text-right">{totals.totalFilesChanged}</TableCell>
                 <TableCell className="text-right">{averageFilesChanged.toFixed(2)}</TableCell>
-                <TableCell className="text-right">{averagePRSizeScore.toFixed(2)}</TableCell>
               </TableRow>
             </TableBody>
           </Table>
