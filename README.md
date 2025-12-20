@@ -1,11 +1,44 @@
-# Quality Triage
+# Triage
 
 Data to help leaders answer these questions:
+- Which devs are outperforming/underperforming expectations?
 - Which devs is the team most reliant on? Is the team becoming more/less balanced?
-- Who might be at silent risk of burnout/attrition?
 - Which parts of our codebase are costliest to maintain? Which are becoming more costly?
-- What areas of code are most brittle? Where should we focus first to reduce regressions?
-- Where will we get the highest ROI on reducing tech debt?
+- What areas of code should we focus on to reduce bugs/regressions?
+
+## Performance analytics
+
+### PR summary, per developer
+
+Which devs are outperforming/underperforming expectations? With AI writing more code, these metrics focus on collaboration to assess performance.
+
+![PR summary per developer](screenshots/pr_summary.png)
+
+### Active PR context, by dev
+
+Which devs is the team most reliant on? Is the team becoming more/less balanced? Who might be at silent risk of burnout/attrition?
+
+![Active PR context by dev](screenshots/pr_involvement.png)
+
+### Bugfix PR breakdown
+
+What share of PRs in each repo are bugfixes?
+
+![Bugfix PR breakdown](screenshots/bugfix_breakdown.png)
+
+### Bugfixes as share of team PR throughput
+
+Which parts of our codebase are costliest to maintain? Which are becoming more costly?
+- The more consistent in size/complexity your PRs, the more useful this metric
+
+![Bugfixes as share of team PR throughput](screenshots/bugfix_throughput.png)
+
+### Code hotspots
+
+What areas of code are most brittle? Where should we focus first to reduce bugs/regressions?
+- Likely more useful for LLM-generated or old code you/your team are less familiar with
+
+![Code hotspots](screenshots/code_hotspots.png)
 
 ## Quickstart
 
@@ -45,36 +78,6 @@ On first launch, configure the dashboard for your team:
 4. **Total PRs Query** - GitHub search query for all PRs created by your team
 
 Configuration is automatically saved to `config.json` for persistence.
-
-## Team Health
-
-### Active PR context, by dev
-
-Which devs is the team most reliant on? Is the team becoming more/less balanced? Who might be at silent risk of burnout/attrition?
-
-![Active PR context by dev](screenshots/pr_involvement.png)
-
-## Code Health
-
-### Bugfix PR breakdown
-
-What share of PRs in each repo are bugfixes?
-
-![Bugfix PR breakdown](screenshots/bugfix_breakdown.png)
-
-### Bugfixes as share of team PR throughput
-
-Which parts of our codebase are costliest to maintain? Which are becoming more costly?
-- The more consistent in size/complexity your PRs, the more useful this metric
-
-![Bugfixes as share of team PR throughput](screenshots/bugfix_throughput.png)
-
-### Code hotspots
-
-What areas of code are most brittle? Where should we focus first to reduce regressions?
-- Likely more useful for LLM-generated or old code you/your team are less familiar with
-
-![Code hotspots](screenshots/code_hotspots.png)
 
 ## License
 
